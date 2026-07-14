@@ -3,7 +3,7 @@
 This repository uses GitVersion to calculate versions for a CD deploy-repo
 branching model with three relevant branch families:
 
-- `main`
+- `main` / `master`
 - `hotfix/*`
 - `feature/*`
 
@@ -12,30 +12,37 @@ branching model with three relevant branch families:
 ## What GitVersion does here
 
 GitVersion calculates the semantic version and branch-specific pre-release
-label. It does not enforce deployment approvals, protected tags, production
-usage, or environment promotion order. Those rules must be implemented in the
-Git host and CI/CD pipeline.
+label for the authoritative pipeline branches. It does not enforce deployment
+approvals, protected tags, production usage, or environment promotion order.
+Those rules must be implemented in the Git host and CI/CD pipeline.
 
-The expected protected production tag format is:
+Feature branches are different: developers may create their own tags there for
+test or x0 deployments. Those feature tags are not authoritative. Once a
+feature branch is merged into `main` / `master`, GitVersion should calculate
+the next protected tag from the merged commit history on `main` / `master`.
+
+The expected protected main/master production tag format is:
 
 ```text
-<MajorMinorPatch>-<PreReleaseLabel>
+<MajorMinorPatch>
 ```
 
-Examples:
+Example:
 
 ```text
-0.0.1-release
-0.0.1-hotfix
+0.0.1
 ```
 
-Do not use `FullSemVer` for protected production tags, because untagged
-pre-release builds include an additional counter, for example:
+Hotfix builds still use a pre-release label while the hotfix branch is open:
 
 ```text
-0.0.1-release.1
 0.0.1-hotfix.1
+0.0.1-hotfix.2
+0.0.1-hotfix.3
 ```
+
+The protected hotfix deployment tag should be created by the pipeline from
+`FullSemVer`, for example `0.0.1-hotfix.1`.
 
 ## Top-level settings
 
@@ -48,31 +55,45 @@ model.
 
 ### `mode: ContinuousDelivery`
 
-Continuous Delivery mode keeps producing stable, predictable pre-release
-versions from each branch until an explicit tag exists.
+Continuous Delivery mode keeps producing predictable versions from each branch
+until an explicit tag exists.
 
-For example, on `main` GitVersion can produce:
+For protected main/master tags, use the `MajorMinorPatch` variable. For
+example:
 
 ```text
-0.0.1-release.1
+0.0.1
 ```
 
 The pipeline can then create the protected tag:
 
 ```text
-0.0.1-release
+0.0.1
 ```
 
-### `tag-prefix: '[vV]?'`
+### `tag-prefix`
 
-This allows GitVersion to understand both tag styles:
+```yaml
+tag-prefix: '[vV]?(?=\d+\.\d+\.\d+$)'
+```
+
+GitVersion should only treat stable protected main/master tags as version
+sources:
 
 ```text
-0.0.1-release
-v0.0.1-release
+0.0.1
+v0.0.1
 ```
 
 The `v` prefix is optional.
+
+This is intentionally stricter than the default `tag-prefix: '[vV]?'`.
+Developers may tag feature branches however they want, and those tags may be
+merged into `main` / `master` as part of the Git graph. They must not take over
+the next production version calculation.
+
+Hotfix deployment tags such as `0.0.1-hotfix.1` are also ignored as version
+sources. The stable main/master tag is the authoritative version source.
 
 ### `semantic-version-format: Strict`
 
@@ -90,8 +111,13 @@ Commit messages may request explicit version bumps:
 +semver: none
 ```
 
-Patch is the default branch increment, but these messages allow intentional
-minor and major releases without changing the GitVersion config.
+Patch is the default branch increment. These messages allow intentional patch,
+minor, and major bumps without changing the GitVersion config.
+
+For feature work, the important part is the merged history: if a feature branch
+contains `+semver: minor` or `+semver: major` and is merged into
+`main` / `master` without losing that commit message, GitVersion can use that
+history when calculating the next protected tag on `main` / `master`.
 
 ## Branches
 
@@ -99,36 +125,28 @@ minor and major releases without changing the GitVersion config.
 
 ```yaml
 main:
-  regex: ^main$
-  label: release
+  regex: ^(?:main|master)$
+  label: ''
   mode: ContinuousDelivery
   increment: Patch
 ```
 
-`main` represents the blue main pipeline in the diagram.
+`main` / `master` represents the blue main pipeline in the diagram.
 
-The chosen label is:
-
-```text
-release
-```
-
-That means the calculated pre-release version on `main` looks like:
+The label is intentionally empty. Main/master production tags should be stable
+SemVer tags:
 
 ```text
-0.0.1-release.1
+0.0.1
 ```
 
-The pipeline should use `MajorMinorPatch` and `PreReleaseLabel` to create the
-protected release tag:
+On an untagged main/master commit, `FullSemVer` may contain a build counter
+such as `0.1.1-3`. The production tag should still use `MajorMinorPatch`, for
+example `0.1.1`.
 
-```text
-0.0.1-release
-```
-
-`increment: Patch` is the default increment for normal mainline movement.
-The larger jumps shown in the diagram are handled explicitly through
-commit-message incrementing:
+`increment: Patch` is the default increment for normal mainline movement. The
+larger jumps shown in the diagram are handled explicitly through commit-message
+incrementing in the history that lands on `main` / `master`:
 
 ```text
 0.0.1 -> 0.1.0 -> 1.0.0 -> 1.1.0 -> 2.0.0
@@ -141,12 +159,16 @@ through commit messages such as `+semver: minor` or `+semver: major`.
 
 ```yaml
 prevent-increment:
-  of-merged-branch: true
+  of-merged-branch: false
   when-current-commit-tagged: true
 ```
 
-This avoids accidental extra bumps when a branch has already contributed its
-version or when the current commit is already tagged.
+`of-merged-branch: false` is important for this flow. It allows version bump
+signals from a merged feature branch to influence the next `main` / `master`
+calculation.
+
+`when-current-commit-tagged: true` avoids an extra bump when the current
+commit already has the protected pipeline tag.
 
 ### `source-branches`
 
@@ -158,7 +180,7 @@ source-branches:
 
 This does not mean GitVersion checks out or uses those branches as a fixed
 base. It means GitVersion may interpret `feature/*` and `hotfix/*` branches as
-valid sources that can be merged into `main`.
+valid sources that can be merged into `main` / `master`.
 
 ### `hotfix/*`
 
@@ -167,7 +189,7 @@ hotfix:
   regex: ^hotfix(es)?[/-](?<BranchName>.+)
   label: hotfix
   mode: ContinuousDelivery
-  increment: Patch
+  increment: None
 ```
 
 `hotfix/*` represents the green hotfix pipeline in the diagram.
@@ -182,13 +204,19 @@ That means GitVersion can calculate:
 
 ```text
 0.0.1-hotfix.1
+0.0.1-hotfix.2
+0.0.1-hotfix.3
 ```
 
-The pipeline should create the protected hotfix tag from
-`MajorMinorPatch` and `PreReleaseLabel`:
+`increment: None` is intentional here. A hotfix branch should copy the
+`MajorMinorPatch` from its source on `main` / `master` and append the `hotfix`
+label. The counter at the end represents the hotfix branch iterations.
+
+The pipeline should create the protected hotfix deployment tag from
+`FullSemVer`:
 
 ```text
-0.0.1-hotfix
+0.0.1-hotfix.1
 ```
 
 `source-branches` is restricted to `main`:
@@ -198,7 +226,12 @@ source-branches:
   - main
 ```
 
-This documents the intended flow: hotfix branches are created from `main`.
+This documents the intended flow: hotfix branches are created from `main` /
+`master`.
+
+The actual next stable SemVer is calculated after the hotfix branch is merged
+back into `main` / `master`. At that point, the hotfix commits are part of the
+main/master history and the normal main/master increment rules apply.
 
 The additional approval required for production hotfix deployment is not a
 GitVersion concern. It must be enforced by the deployment pipeline or
@@ -232,8 +265,19 @@ can produce:
 self-created or triggered when needed. They are not treated like the protected
 main and hotfix CD paths.
 
-`increment: Inherit` lets the feature branch inherit the increment strategy
-from its source branch instead of defining a separate release policy.
+Feature branch tags are intentionally non-authoritative. Developers may tag
+feature branches for their own deployment needs, but protected version tags are
+calculated after the feature branch lands on `main` / `master`.
+
+`increment: Inherit` keeps feature branches from defining a separate release
+policy. Version bump intent should be carried by commit messages that survive
+the merge:
+
+```text
++semver: patch
++semver: minor
++semver: major
+```
 
 ### `pull-request`
 
@@ -278,8 +322,8 @@ increment: Inherit
 label: '{BranchName}'
 ```
 
-That keeps unexpected branches from looking like protected `release` or
-`hotfix` builds.
+That keeps unexpected branches from looking like protected main/master or
+hotfix builds.
 
 ## What must be enforced outside GitVersion
 
@@ -292,13 +336,14 @@ GitVersion.yml:
 - hotfix additional approval
 - environment order such as `d0/1 -> u0/u1 -> t0/t1 -> p0`
 - feature-only x0 deployment
+- ensuring feature tags do not match protected production tag patterns
 - blocking `release/*` and `develop` in CI
 
 Recommended protected tag patterns:
 
 ```text
-^v?\d+\.\d+\.\d+-release$
-^v?\d+\.\d+\.\d+-hotfix$
+^v?\d+\.\d+\.\d+$
+^v?\d+\.\d+\.\d+-hotfix\.\d+$
 ```
 
 These should be implemented in the Git host and CI/CD pipeline.

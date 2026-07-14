@@ -1,22 +1,28 @@
 # CD branching model for the deploy repo.
 #
 # Pipeline contract:
-# - main builds/tags protected production candidates as:  <semver>-release
-# - hotfix/* builds/tags protected production hotfixes as: <semver>-hotfix
-# - feature/* may use self-created tags for x0 deployments/E2E automation
-# - use MajorMinorPatch + PreReleaseLabel for protected tags, not FullSemVer
+# - main/master builds/tags protected production candidates as: <semver>
+# - hotfix/* builds/tags protected production hotfixes as: <full-semver>
+# - feature/* may use self-created tags for x0 deployments/E2E automation;
+#   these tags are not authoritative for main/master version calculation
+# - use MajorMinorPatch for main/master tags
+# - use FullSemVer for protected hotfix tags
 #
 # Protect these tag patterns in the Git host/pipeline:
-# - ^v?\d+\.\d+\.\d+-release$
-# - ^v?\d+\.\d+\.\d+-hotfix$
+# - ^v?\d+\.\d+\.\d+$
+# - ^v?\d+\.\d+\.\d+-hotfix\.\d+$
 
 workflow: GitHubFlow/v1
 mode: ContinuousDelivery
-tag-prefix: '[vV]?'
+# Only stable protected main/master tags are GitVersion version sources.
+# Free feature tags and hotfix deployment tags must not influence main/master
+# after merge.
+tag-prefix: '[vV]?(?=\d+\.\d+\.\d+$)'
 semantic-version-format: Strict
 commit-message-incrementing: Enabled
 
-# Default bump is patch. Use commit messages to request larger bumps:
+# Default bump is patch. Use commit messages in merged history to request
+# explicit bumps on main/master or hotfix:
 # +semver: patch
 # +semver: minor
 # +semver: major
@@ -27,12 +33,12 @@ no-bump-message: '\+semver:\s?(none|skip)'
 
 branches:
   main:
-    regex: ^main$
-    label: release
+    regex: ^(?:main|master)$
+    label: ''
     mode: ContinuousDelivery
     increment: Patch
     prevent-increment:
-      of-merged-branch: true
+      of-merged-branch: false
       when-current-commit-tagged: true
     track-merge-message: true
     source-branches:
@@ -46,7 +52,7 @@ branches:
     regex: ^hotfix(es)?[/-](?<BranchName>.+)
     label: hotfix
     mode: ContinuousDelivery
-    increment: Patch
+    increment: None
     prevent-increment:
       when-current-commit-tagged: true
     track-merge-message: true
