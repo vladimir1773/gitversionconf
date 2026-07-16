@@ -36,13 +36,13 @@ Example:
 Hotfix builds still use a pre-release label while the hotfix branch is open:
 
 ```text
-0.0.1-hotfix.1
-0.0.1-hotfix.2
-0.0.1-hotfix.3
+0.0.1-hotfix-urgent.1
+0.0.1-hotfix-urgent.2
+0.0.1-hotfix-urgent.3
 ```
 
 The protected hotfix deployment tag should be created by the pipeline from
-`FullSemVer`, for example `0.0.1-hotfix.1`.
+`FullSemVer`, for example `0.0.1-hotfix-urgent.1`.
 
 ## Top-level settings
 
@@ -92,8 +92,9 @@ Developers may tag feature branches however they want, and those tags may be
 merged into `main` / `master` as part of the Git graph. They must not take over
 the next production version calculation.
 
-Hotfix deployment tags such as `0.0.1-hotfix.1` are also ignored as version
-sources. The stable main/master tag is the authoritative version source.
+Hotfix deployment tags such as `0.0.1-hotfix-urgent.1` are also ignored as
+version sources. The stable main/master tag is the authoritative version
+source.
 
 ### `semantic-version-format: Strict`
 
@@ -187,36 +188,45 @@ valid sources that can be merged into `main` / `master`.
 ```yaml
 hotfix:
   regex: ^hotfix(es)?[/-](?<BranchName>.+)
-  label: hotfix
+  label: hotfix-{BranchName}
   mode: ContinuousDelivery
   increment: None
 ```
 
 `hotfix/*` represents the green hotfix pipeline in the diagram.
 
-The chosen label is:
+The label includes the hotfix branch name:
 
 ```text
-hotfix
+hotfix-{BranchName}
 ```
 
 That means GitVersion can calculate:
 
 ```text
-0.0.1-hotfix.1
-0.0.1-hotfix.2
-0.0.1-hotfix.3
+0.0.1-hotfix-urgent.1
+0.0.1-hotfix-urgent.2
+0.0.1-hotfix-urgent.3
 ```
 
 `increment: None` is intentional here. A hotfix branch should copy the
-`MajorMinorPatch` from its source on `main` / `master` and append the `hotfix`
-label. The counter at the end represents the hotfix branch iterations.
+`MajorMinorPatch` from its source on `main` / `master` and append a hotfix
+label that contains the branch name. The counter at the end represents the
+hotfix branch iterations.
+
+Including the branch name avoids collisions when two hotfix branches are cut
+from the same main/master version. For example:
+
+```text
+hotfix/urgent    -> 0.0.1-hotfix-urgent.1
+hotfix/login-fix -> 0.0.1-hotfix-login-fix.1
+```
 
 The pipeline should create the protected hotfix deployment tag from
 `FullSemVer`:
 
 ```text
-0.0.1-hotfix.1
+0.0.1-hotfix-urgent.1
 ```
 
 `source-branches` is restricted to `main`:
@@ -343,7 +353,7 @@ Recommended protected tag patterns:
 
 ```text
 ^v?\d+\.\d+\.\d+$
-^v?\d+\.\d+\.\d+-hotfix\.\d+$
+^v?\d+\.\d+\.\d+-hotfix-[0-9A-Za-z-]+\.\d+$
 ```
 
 These should be implemented in the Git host and CI/CD pipeline.
@@ -427,7 +437,7 @@ Expected:
 
 ```text
 0.1.0
-0.1.0-hotfix.1
+0.1.0-hotfix-urgent.1
 1
 ```
 
@@ -445,7 +455,7 @@ gitversion /showvariable CommitsSinceVersionSource
 Expected:
 
 ```text
-0.1.0-hotfix.2
+0.1.0-hotfix-urgent.2
 2
 ```
 

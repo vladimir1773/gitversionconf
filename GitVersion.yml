@@ -10,7 +10,7 @@
 #
 # Protect these tag patterns in the Git host/pipeline:
 # - ^v?\d+\.\d+\.\d+$
-# - ^v?\d+\.\d+\.\d+-hotfix\.\d+$
+# - ^v?\d+\.\d+\.\d+-hotfix-[0-9A-Za-z-]+\.\d+$
 
 workflow: GitHubFlow/v1
 mode: ContinuousDelivery
@@ -50,7 +50,7 @@ branches:
 
   hotfix:
     regex: ^hotfix(es)?[/-](?<BranchName>.+)
-    label: hotfix
+    label: hotfix-{BranchName}
     mode: ContinuousDelivery
     increment: None
     prevent-increment:
