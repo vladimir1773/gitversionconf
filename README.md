@@ -347,3 +347,207 @@ Recommended protected tag patterns:
 ```
 
 These should be implemented in the Git host and CI/CD pipeline.
+
+## Manual Test Guide
+
+The following commands validate the branching model without a CI/CD pipeline.
+They create a temporary repository, copy this `GitVersion.yml`, and exercise the
+main/master, hotfix, and feature flows.
+
+Run the guide from this repository:
+
+```bash
+cd "/Users/vladimir/Documents/New project 2/gitversionconf"
+```
+
+### Setup
+
+```bash
+TEST_DIR="$(mktemp -d /tmp/gitversion-manual-test.XXXXXX)"
+cp GitVersion.yml "$TEST_DIR/GitVersion.yml"
+cd "$TEST_DIR"
+
+git init -b main
+git config user.name "Manual Test"
+git config user.email "manual@test.local"
+
+touch README.md
+git add README.md GitVersion.yml
+git commit -m "initial"
+```
+
+### Case 1: Main Starts Stable
+
+```bash
+gitversion /showvariable MajorMinorPatch
+gitversion /showvariable FullSemVer
+```
+
+Expected:
+
+```text
+0.0.1
+0.0.1
+```
+
+Create an authoritative stable main/master tag:
+
+```bash
+git tag 0.1.0
+```
+
+### Case 2: Hotfix Copies Main SemVer And Counts Iterations
+
+```bash
+git switch -c hotfix/urgent
+
+gitversion /showvariable MajorMinorPatch
+gitversion /showvariable FullSemVer
+```
+
+Directly on the tagged source commit, `FullSemVer` can still be:
+
+```text
+0.1.0
+```
+
+Create the first hotfix commit:
+
+```bash
+touch fix-1.txt
+git add fix-1.txt
+git commit -m "hotfix work 1"
+
+gitversion /showvariable MajorMinorPatch
+gitversion /showvariable FullSemVer
+gitversion /showvariable CommitsSinceVersionSource
+```
+
+Expected:
+
+```text
+0.1.0
+0.1.0-hotfix.1
+1
+```
+
+Create a second hotfix commit:
+
+```bash
+touch fix-2.txt
+git add fix-2.txt
+git commit -m "hotfix work 2"
+
+gitversion /showvariable FullSemVer
+gitversion /showvariable CommitsSinceVersionSource
+```
+
+Expected:
+
+```text
+0.1.0-hotfix.2
+2
+```
+
+The hotfix pipeline should use `FullSemVer` for the protected hotfix tag:
+
+```bash
+git tag "$(gitversion /showvariable FullSemVer)"
+```
+
+### Case 3: Hotfix Backmerge Produces Next Stable Main Version
+
+```bash
+git switch main
+git merge --no-ff hotfix/urgent -m "merge hotfix urgent"
+
+gitversion /showvariable MajorMinorPatch
+gitversion /showvariable FullSemVer
+gitversion /showvariable CommitsSinceVersionSource
+```
+
+Expected:
+
+```text
+0.1.1
+0.1.1-3
+3
+```
+
+For the protected main/master production tag, use `MajorMinorPatch`, not
+`FullSemVer`:
+
+```bash
+git tag "$(gitversion /showvariable MajorMinorPatch)"
+```
+
+### Case 4: Feature Tags Do Not Take Over Main Versioning
+
+```bash
+git switch -c feature/free-tag-test
+
+touch feature-1.txt
+git add feature-1.txt
+git commit -m "feature work +semver: minor"
+
+git tag "whatever-devs-want"
+git tag "9.9.9-random-feature-tag"
+
+git switch main
+git merge --no-ff feature/free-tag-test -m "merge feature free-tag-test"
+
+gitversion /showvariable MajorMinorPatch
+gitversion /showvariable FullSemVer
+gitversion /showvariable CommitsSinceVersionSource
+```
+
+Expected: the result must not be `9.9.9`. The free feature tag must not become
+the main/master version source. Because the feature commit contains
+`+semver: minor`, `MajorMinorPatch` should move to the next minor version.
+
+Example:
+
+```text
+0.2.0
+0.2.0-3
+3
+```
+
+Tag the new stable main/master version:
+
+```bash
+git tag "$(gitversion /showvariable MajorMinorPatch)"
+```
+
+### Case 5: Major Bump From Feature History
+
+```bash
+git switch -c feature/major-test
+
+touch breaking.txt
+git add breaking.txt
+git commit -m "breaking feature +semver: major"
+
+git switch main
+git merge --no-ff feature/major-test -m "merge feature major-test"
+
+gitversion /showvariable MajorMinorPatch
+```
+
+Expected:
+
+```text
+1.0.0
+```
+
+### Helpful Inspection Commands
+
+```bash
+git tag --list
+git log --oneline --decorate --graph --all
+gitversion /showConfig
+```
+
+If your real repository uses squash merges, make sure `+semver: patch`,
+`+semver: minor`, or `+semver: major` survives in the squash commit message.
+Otherwise GitVersion cannot see the requested bump in the main/master history.
