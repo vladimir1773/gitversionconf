@@ -57,6 +57,7 @@ branches:
     label: hotfix-{BranchName}
     mode: ContinuousDelivery
     increment: None
+    commit-message-incrementing: Disabled
     prevent-increment:
       when-current-commit-tagged: true
     track-merge-message: true

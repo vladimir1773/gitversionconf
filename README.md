@@ -198,6 +198,7 @@ hotfix:
   label: hotfix-{BranchName}
   mode: ContinuousDelivery
   increment: None
+  commit-message-incrementing: Disabled
 ```
 
 `hotfix/*` represents the green hotfix pipeline in the diagram.
@@ -220,6 +221,13 @@ That means GitVersion can calculate:
 `MajorMinorPatch` from its source on `main` / `master` and append a hotfix
 label that contains the branch name. The counter at the end represents the
 hotfix branch iterations.
+
+`commit-message-incrementing: Disabled` is also intentional for hotfix
+branches. Conventional Commit messages or `+semver` markers should not mutate
+the copied `MajorMinorPatch` while the hotfix branch is open. For example, even
+if a test commit says `BREAKING CHANGE: ...`, the hotfix branch should continue
+to produce versions such as `0.1.0-hotfix-urgent.1`, not
+`1.0.0-hotfix-urgent.1`.
 
 Including the branch name avoids collisions when two hotfix branches are cut
 from the same main/master version. For example:
@@ -373,6 +381,12 @@ These should be implemented in the Git host and CI/CD pipeline.
 The following commands validate the branching model without a CI/CD pipeline.
 They create a temporary repository, copy this `GitVersion.yml`, and exercise the
 main/master, hotfix, and feature flows.
+
+The same checks are available as a script:
+
+```bash
+./scripts/run-manual-tests.sh
+```
 
 Run the guide from this repository:
 
