@@ -21,14 +21,18 @@ tag-prefix: '[vV]?(?=\d+\.\d+\.\d+$)'
 semantic-version-format: Strict
 commit-message-incrementing: Enabled
 
-# Default bump is patch. Use commit messages in merged history to request
-# explicit bumps on main/master or hotfix:
+# Default bump is patch. Conventional Commits and GitVersion +semver markers
+# both request explicit bumps from merged history:
+# feat: ...
+# fix: ...
+# feat!: ...
+# BREAKING CHANGE: ...
 # +semver: patch
 # +semver: minor
 # +semver: major
-major-version-bump-message: '\+semver:\s?(breaking|major)'
-minor-version-bump-message: '\+semver:\s?(feature|minor)'
-patch-version-bump-message: '\+semver:\s?(fix|patch)'
+major-version-bump-message: '(^.+!:.+|BREAKING[ -]CHANGE:|\+semver:\s?(breaking|major))'
+minor-version-bump-message: '(^feat(\([^)]+\))?:|\+semver:\s?(feature|minor))'
+patch-version-bump-message: '(^fix(\([^)]+\))?:|^perf(\([^)]+\))?:|\+semver:\s?(fix|patch))'
 no-bump-message: '\+semver:\s?(none|skip)'
 
 branches:

@@ -106,6 +106,11 @@ instead of becoming part of the version history accidentally.
 Commit messages may request explicit version bumps:
 
 ```text
+fix: patch something
+perf: improve something
+feat: add something
+feat!: change something in a breaking way
+BREAKING CHANGE: describe the breaking change
 +semver: patch
 +semver: minor
 +semver: major
@@ -116,9 +121,10 @@ Patch is the default branch increment. These messages allow intentional patch,
 minor, and major bumps without changing the GitVersion config.
 
 For feature work, the important part is the merged history: if a feature branch
-contains `+semver: minor` or `+semver: major` and is merged into
-`main` / `master` without losing that commit message, GitVersion can use that
-history when calculating the next protected tag on `main` / `master`.
+contains `feat: ...`, `feat!: ...`, `BREAKING CHANGE: ...`,
+`+semver: minor`, or `+semver: major` and is merged into `main` / `master`
+without losing that commit message, GitVersion can use that history when
+calculating the next protected tag on `main` / `master`.
 
 ## Branches
 
@@ -154,7 +160,8 @@ incrementing in the history that lands on `main` / `master`:
 ```
 
 Patch is the safe default. Minor and major jumps should be requested explicitly
-through commit messages such as `+semver: minor` or `+semver: major`.
+through commit messages such as `feat: ...`, `feat!: ...`,
+`BREAKING CHANGE: ...`, `+semver: minor`, or `+semver: major`.
 
 ### `prevent-increment`
 
@@ -284,6 +291,9 @@ policy. Version bump intent should be carried by commit messages that survive
 the merge:
 
 ```text
+fix: patch something
+feat: add something
+feat!: change something in a breaking way
 +semver: patch
 +semver: minor
 +semver: major
@@ -498,7 +508,7 @@ git switch -c feature/free-tag-test
 
 touch feature-1.txt
 git add feature-1.txt
-git commit -m "feature work +semver: minor"
+git commit -m "feat: add free tag test feature"
 
 git tag "whatever-devs-want"
 git tag "9.9.9-random-feature-tag"
@@ -512,8 +522,8 @@ gitversion /showvariable CommitsSinceVersionSource
 ```
 
 Expected: the result must not be `9.9.9`. The free feature tag must not become
-the main/master version source. Because the feature commit contains
-`+semver: minor`, `MajorMinorPatch` should move to the next minor version.
+the main/master version source. Because the feature commit uses `feat:`,
+`MajorMinorPatch` should move to the next minor version.
 
 Example:
 
@@ -536,7 +546,7 @@ git switch -c feature/major-test
 
 touch breaking.txt
 git add breaking.txt
-git commit -m "breaking feature +semver: major"
+git commit -m "feat!: change public contract"
 
 git switch main
 git merge --no-ff feature/major-test -m "merge feature major-test"
@@ -558,6 +568,8 @@ git log --oneline --decorate --graph --all
 gitversion /showConfig
 ```
 
-If your real repository uses squash merges, make sure `+semver: patch`,
-`+semver: minor`, or `+semver: major` survives in the squash commit message.
-Otherwise GitVersion cannot see the requested bump in the main/master history.
+If your real repository uses squash merges, make sure the Conventional Commit
+prefix (`fix:`, `perf:`, `feat:`, `feat!:`) or the `+semver: patch`,
+`+semver: minor`, or `+semver: major` marker survives in the squash commit
+message. Otherwise GitVersion cannot see the requested bump in the main/master
+history.
