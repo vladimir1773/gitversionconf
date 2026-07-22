@@ -9,6 +9,42 @@ branching model with three relevant branch families:
 
 `release/*` and `develop` are intentionally out of scope for this repository.
 
+## Available Configurations
+
+This repository contains two GitVersion configurations:
+
+- `GitVersion.yml` for deploy repositories with `main` / `master`,
+  `feature/*`, and `hotfix/*`
+- `GitVersion.helm.yml` for Helm chart repositories with only
+  `main` / `master` and `feature/*`
+
+For Helm chart repositories, copy `GitVersion.helm.yml` into the chart
+repository as `GitVersion.yml`.
+
+The Helm-specific test runner and manual command guide are:
+
+```bash
+./scripts/run-helm-tests.sh
+```
+
+See [HELM-MANUAL-TESTS.md](HELM-MANUAL-TESTS.md) for the complete step-by-step
+shell command list.
+
+The Helm chart model does not define hotfix branches. `main` / `master` is the
+only authoritative SemVer line, and the pipeline should create the chart version
+tag from `MajorMinorPatch`, for example:
+
+```text
+1.2.3
+```
+
+Feature branches may create preview/test tags, but they must not be allowed to
+create tags matching the protected stable SemVer pattern:
+
+```text
+^v?\d+\.\d+\.\d+$
+```
+
 ## What GitVersion does here
 
 GitVersion calculates the semantic version and branch-specific pre-release

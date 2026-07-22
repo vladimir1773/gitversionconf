@@ -1,0 +1,108 @@
+# GitVersion model for Helm chart repositories.
+#
+# Pipeline contract:
+# - main/master builds/tags protected chart releases as: <semver>
+# - feature/* may use self-created tags for preview/test deployments
+# - feature tags are not authoritative for main/master version calculation
+# - use MajorMinorPatch for the protected chart version tag
+#
+# Protect this tag pattern in the Git host/pipeline:
+# - ^v?\d+\.\d+\.\d+$
+#
+# Important:
+# Feature branches may tag freely, but they must not be allowed to create tags
+# that match the protected stable SemVer pattern above. Otherwise GitVersion can
+# treat those tags as version sources after merge.
+
+workflow: GitHubFlow/v1
+mode: ContinuousDelivery
+# Only stable protected main/master tags are GitVersion version sources.
+# Free feature tags must not influence main/master after merge.
+tag-prefix: '[vV]?(?=\d+\.\d+\.\d+$)'
+semantic-version-format: Strict
+commit-message-incrementing: Enabled
+
+# Default bump is patch. Conventional Commits and GitVersion +semver markers
+# both request explicit bumps from merged history:
+# feat: ...
+# fix: ...
+# perf: ...
+# feat!: ...
+# BREAKING CHANGE: ...
+# +semver: patch
+# +semver: minor
+# +semver: major
+major-version-bump-message: '(^.+!:.+|BREAKING[ -]CHANGE:|\+semver:\s?(breaking|major))'
+minor-version-bump-message: '(^feat(\([^)]+\))?:|\+semver:\s?(feature|minor))'
+patch-version-bump-message: '(^fix(\([^)]+\))?:|^perf(\([^)]+\))?:|\+semver:\s?(fix|patch))'
+no-bump-message: '\+semver:\s?(none|skip)'
+
+branches:
+  main:
+    regex: ^(?:main|master)$
+    label: ''
+    mode: ContinuousDelivery
+    increment: Patch
+    prevent-increment:
+      of-merged-branch: false
+      when-current-commit-tagged: true
+    track-merge-message: true
+    source-branches:
+      - feature
+    is-main-branch: true
+    is-release-branch: false
+    pre-release-weight: 55000
+
+  feature:
+    regex: ^features?[/-](?<BranchName>.+)
+    label: '{BranchName}'
+    mode: ManualDeployment
+    increment: Inherit
+    prevent-increment:
+      when-current-commit-tagged: false
+    track-merge-message: true
+    source-branches:
+      - main
+    is-main-branch: false
+    is-release-branch: false
+    pre-release-weight: 30000
+
+  pull-request:
+    regex: ^(pull-requests|pull|pr)[/-](?<Number>\d*)
+    label: PullRequest{Number}
+    mode: ContinuousDelivery
+    increment: Inherit
+    prevent-increment:
+      of-merged-branch: true
+      when-current-commit-tagged: false
+    track-merge-message: true
+    source-branches:
+      - main
+      - feature
+    pre-release-weight: 30000
+
+  # Explicitly keep release/*, develop, and hotfix/* out of this chart model.
+  release:
+    regex: ^$
+
+  develop:
+    regex: ^$
+
+  hotfix:
+    regex: ^$
+
+  unknown:
+    regex: (?<BranchName>.+)
+    label: '{BranchName}'
+    mode: ManualDeployment
+    increment: Inherit
+    prevent-increment:
+      when-current-commit-tagged: true
+    source-branches:
+      - main
+      - feature
+    is-main-branch: false
+    is-release-branch: false
+
+ignore:
+  sha: []
